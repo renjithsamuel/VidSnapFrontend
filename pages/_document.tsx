@@ -1,9 +1,33 @@
-import { Html, Head, Main, NextScript } from "next/document";
+import Document from "next/document";
+import {
+  Html,
+  Head,
+  Main,
+  NextScript,
+  DocumentProps,
+  DocumentContext,
+} from "next/document";
+import theme from "@/styles/theme";
+import createEmotionCache from "@/utils/createEmotionCache";
+import createEmotionServer from "@emotion/server/create-instance";
+import { MyAppProps } from "./_app";
+import { AppType } from "next/app";
 
-export default function Document() {
+interface MyDocumentProps extends DocumentProps {
+  emotionStyleTags: JSX.Element[];
+}
+
+export default function MyDocument({ emotionStyleTags }: MyDocumentProps) {
   return (
     <Html lang="en">
-      <Head />
+      <title>VidSnap - Video Downloader</title>
+      <Head>
+        <meta name="description" content="Vidsnap - Video Downloader" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="emotion-insertion-point" content="" />
+        <link rel="icon" href="/logo.svg" />
+        {emotionStyleTags}
+      </Head>
       <body>
         <Main />
         <NextScript />
@@ -11,3 +35,35 @@ export default function Document() {
     </Html>
   );
 }
+
+MyDocument.getInitialProps = async (ctx: DocumentContext) => {
+  const originalRenderPage = ctx.renderPage;
+
+  const cache = createEmotionCache();
+  const { extractCriticalToChunks } = createEmotionServer(cache);
+
+  ctx.renderPage = () =>
+    originalRenderPage({
+      enhanceApp: (
+        App: React.ComponentType<React.ComponentProps<AppType> & MyAppProps>
+      ) =>
+        function EnhanceApp(props) {
+          return <App emotionCache={cache} {...props} />;
+        },
+    });
+
+  const initialProps = await Document.getInitialProps(ctx);
+  const emotionStyles = extractCriticalToChunks(initialProps.html);
+  const emotionStyleTags = emotionStyles.styles.map((style) => (
+    <style
+      data-emotion={`${style.key} ${style.ids.join(" ")}`}
+      key={style.key}
+      dangerouslySetInnerHTML={{ __html: style.css }}
+    />
+  ));
+
+  return {
+    ...initialProps,
+    emotionStyleTags,
+  };
+};
